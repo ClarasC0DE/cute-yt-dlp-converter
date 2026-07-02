@@ -15,6 +15,7 @@ from pathlib import Path
 from tkinter import Canvas, filedialog, messagebox
 
 import customtkinter as ctk
+from PIL import Image, ImageDraw, ImageFilter, ImageTk
 
 from downloader import AUDIO_ONLY_LABEL, FORMAT_PRESETS, DownloadOptions, GuiLogger, download, ffmpeg_available
 from mascot import MascotOverlay
@@ -78,6 +79,7 @@ class HeroBanner(Canvas):
         super().__init__(master, height=height, highlightthickness=0, bg=HERO_TOP)
         self._height = height
         self._last_width = -1
+        self._bg_photo = None
         self._stars = [
             (random.uniform(0.04, 0.7), random.uniform(0.15, 0.85), random.uniform(1.0, 2.3))
             for _ in range(24)
@@ -105,19 +107,42 @@ class HeroBanner(Canvas):
         self._last_width = event.width
         self._redraw(event.width)
 
-    def _redraw(self, width: int) -> None:
-        self.delete("bg")
-        steps = 48
-        for i in range(steps):
-            t = i / (steps - 1)
-            color = _lerp_color(HERO_TOP, HERO_BOTTOM, t)
-            y0 = int(self._height * i / steps)
-            y1 = int(self._height * (i + 1) / steps) + 1
-            self.create_rectangle(0, y0, width, y1, fill=color, outline="", tags="bg")
+    def _build_background(self, width: int) -> Image.Image:
+        height = self._height
+        top_rgb = _hex_to_rgb(HERO_TOP)
+        bottom_rgb = _hex_to_rgb(HERO_BOTTOM)
+
+        gradient_col = Image.new("RGB", (1, height))
+        for y in range(height):
+            t = y / max(1, height - 1)
+            gradient_col.putpixel(
+                (0, y),
+                tuple(int(top_rgb[i] + (bottom_rgb[i] - top_rgb[i]) * t) for i in range(3)),
+            )
+        frame = gradient_col.resize((width, height)).convert("RGBA")
+
+        glow_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        core_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        draw_glow = ImageDraw.Draw(glow_layer)
+        draw_core = ImageDraw.Draw(core_layer)
 
         for rel_x, rel_y, radius in self._stars:
-            x, y = rel_x * width, rel_y * self._height
-            self.create_oval(x - radius, y - radius, x + radius, y + radius, fill="#CFE0FF", outline="", tags="bg")
+            x, y = rel_x * width, rel_y * height
+            glow_r = radius * 4.5
+            draw_glow.ellipse([x - glow_r, y - glow_r, x + glow_r, y + glow_r], fill=(150, 185, 255, 130))
+            draw_core.ellipse([x - radius, y - radius, x + radius, y + radius], fill=(235, 242, 255, 255))
+
+        glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(3.2))
+
+        frame = Image.alpha_composite(frame, glow_layer)
+        frame = Image.alpha_composite(frame, core_layer)
+        return frame.convert("RGB")
+
+    def _redraw(self, width: int) -> None:
+        self.delete("bg")
+
+        self._bg_photo = ImageTk.PhotoImage(self._build_background(width))
+        self.create_image(0, 0, anchor="nw", image=self._bg_photo, tags="bg")
 
         self.create_text(
             28,
@@ -131,7 +156,7 @@ class HeroBanner(Canvas):
         self.create_text(
             28,
             self._height * 0.40 + 28,
-            text="Paste a video or playlist URL and download it in seconds.",
+            text="Paste a URL to download",
             anchor="w",
             fill="#C7CBEE",
             font=("Poppins", 12),
