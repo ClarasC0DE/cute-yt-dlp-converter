@@ -9,14 +9,14 @@ from typing import Callable
 import yt_dlp
 
 FORMAT_PRESETS = {
-    "Beste Qualität (Video+Audio)": "bestvideo+bestaudio/best",
+    "Best Quality (Video+Audio)": "bestvideo+bestaudio/best",
     "1080p": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
     "720p": "bestvideo[height<=720]+bestaudio/best[height<=720]",
     "480p": "bestvideo[height<=480]+bestaudio/best[height<=480]",
-    "Nur Audio (MP3)": "bestaudio/best",
+    "Audio Only (MP3)": "bestaudio/best",
 }
 
-AUDIO_ONLY_LABEL = "Nur Audio (MP3)"
+AUDIO_ONLY_LABEL = "Audio Only (MP3)"
 
 
 @dataclass
@@ -42,10 +42,10 @@ class GuiLogger:
         self._on_message(msg)
 
     def warning(self, msg: str) -> None:
-        self._on_message(f"WARNUNG: {msg}")
+        self._on_message(f"WARNING: {msg}")
 
     def error(self, msg: str) -> None:
-        self._on_message(f"FEHLER: {msg}")
+        self._on_message(f"ERROR: {msg}")
 
 
 def ffmpeg_available() -> bool:

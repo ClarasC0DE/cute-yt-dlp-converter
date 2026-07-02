@@ -1,29 +1,30 @@
-# yt-dlp GUI Downloader
+# Video & Audio Converter
 
-Eine kleine, moderne Desktop-GUI (CustomTkinter) rund um [yt-dlp](https://github.com/yt-dlp/yt-dlp),
-um Videos und Playlists bequem herunterzuladen — als eigenständige Windows-`.exe`.
+A small, modern desktop GUI (CustomTkinter) around [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+for downloading and converting videos and playlists — packaged as a standalone Windows `.exe`.
 
 ## Features
 
-- Modernes Dark-Theme UI (CustomTkinter)
-- Qualitätsauswahl (Beste Qualität, 1080p, 720p, 480p, Nur Audio als MP3)
-- Playlist-Unterstützung
-- Live-Fortschrittsanzeige + Log-Ausgabe
-- Eingebaute Bibliotheks-Ansicht (Button "📁 Downloads" oben rechts): zeigt alle
-  heruntergeladenen Video-/Audiodateien im Zielordner und spielt sie direkt in der
-  App ab (Play/Pause, Fortschrittsleiste, Lautstärke)
-- Läuft als portable Einzeldatei-`.exe`
+- Modern dark-theme UI (CustomTkinter) with a custom Poppins font, bundled so it
+  looks the same for every user
+- Quality presets (Best Quality, 1080p, 720p, 480p, Audio Only as MP3)
+- Playlist support
+- Live progress display + log output
+- Built-in library view ("Downloads" button top right): lists every downloaded
+  video/audio file in the destination folder and plays it directly in the app
+  (play/pause, seek bar, volume, loop)
+- A little cat mascot that celebrates when your download finishes
+- Runs as a portable single-file `.exe`
 
-## Voraussetzungen
+## Requirements
 
-- [ffmpeg](https://ffmpeg.org/download.html) muss installiert und im `PATH` verfügbar sein
-  (wird für Zusammenführen von Video/Audio sowie für die MP3-Konvertierung benötigt).
-- [VLC Media Player](https://www.videolan.org/vlc/) muss installiert sein, damit die
-  eingebaute Wiedergabe in der Bibliotheks-Ansicht funktioniert (nutzt `libvlc` über
-  `python-vlc`). Ohne VLC funktioniert der Rest der App normal, die Wiedergabe zeigt
-  dann nur einen Hinweis.
+- [ffmpeg](https://ffmpeg.org/download.html) must be installed and available on
+  `PATH` (needed for merging video/audio and for MP3 conversion).
+- [VLC Media Player](https://www.videolan.org/vlc/) must be installed for the
+  built-in library playback to work (uses `libvlc` via `python-vlc`). Without
+  VLC, the rest of the app still works normally — playback just shows a notice.
 
-## Entwicklung / Start ohne exe
+## Development / run without building an exe
 
 ```powershell
 py -m venv .venv
@@ -31,27 +32,27 @@ py -m venv .venv
 .venv\Scripts\python main.py
 ```
 
-## Windows-exe bauen
+## Build the Windows exe
 
 ```powershell
 .\build.ps1
 ```
 
-Die fertige `.exe` liegt danach unter `dist\yt-dlp-gui.exe`.
+The finished `.exe` will be at `dist\yt-dlp-gui.exe`.
 
-## Bekannte Einschränkung
+## Known limitation
 
-YouTube ändert regelmäßig seine Anti-Bot-Maßnahmen, wodurch Downloads zeitweise mit
-Fehlern wie `HTTP Error 403` fehlschlagen können. In diesem Fall hilft meist ein
-Update von yt-dlp auf die neueste Version (`pip install -U yt-dlp`), da das Projekt
-sehr aktiv gegen solche Änderungen patcht.
+YouTube regularly changes its anti-bot measures, which can make downloads
+intermittently fail with errors like `HTTP Error 403`. Updating yt-dlp to the
+latest version (`pip install -U yt-dlp`) usually fixes this, since the project
+patches around such changes very actively.
 
-## Hinweis zur Nutzung
+## Usage note
 
-Dieses Tool lädt lediglich Inhalte über die offene [yt-dlp](https://github.com/yt-dlp/yt-dlp)-Bibliothek
-herunter (Unlicense). Bitte nur Inhalte herunterladen, für die du die entsprechenden Rechte
-hast bzw. die Nutzungsbedingungen der jeweiligen Plattform es erlauben.
+This tool only downloads content through the open-source [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+library (Unlicense). Please only download content you have the rights to, or
+that the platform's terms of service permit.
 
-## Lizenz
+## License
 
-MIT — siehe [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).

@@ -1,0 +1,4 @@
+Poppins (Poppins-Regular.ttf, Poppins-SemiBold.ttf)
+Designed by Indian Type Foundry / Jonny Pinhorn
+Licensed under the SIL Open Font License, Version 1.1
+https://openfontlicense.org

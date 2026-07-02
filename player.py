@@ -64,7 +64,7 @@ class PlayerWidget(ctk.CTkFrame):
 
         self.placeholder_label = ctk.CTkLabel(
             self.video_surface,
-            text="Wähle links eine Datei aus, um sie abzuspielen.",
+            text="Select a file on the left to play it.",
             text_color="#6B7094",
             bg_color="black",
         )

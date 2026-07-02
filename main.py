@@ -1,9 +1,11 @@
-"""yt-dlp GUI Downloader
+"""Video & Audio Converter
 
-A small, modern desktop GUI around yt-dlp for downloading videos/audio.
+A small, modern desktop GUI around yt-dlp for downloading and converting
+videos/audio.
 """
 from __future__ import annotations
 
+import ctypes
 import os
 import queue
 import random
@@ -20,11 +22,23 @@ from player import MEDIA_EXTENSIONS, VIDEO_EXTENSIONS, PlayerWidget
 
 ctk.set_appearance_mode("dark")
 
+FR_PRIVATE = 0x10
+
 
 def resource_path(relative_path: str) -> str:
     """Resolve a bundled asset both when run from source and from a PyInstaller exe."""
     base_path = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base_path, relative_path)
+
+
+def load_private_fonts() -> None:
+    """Register the bundled Poppins font for this process only (no install needed)."""
+    if not sys.platform.startswith("win"):
+        return
+    for filename in ("Poppins-Regular.ttf", "Poppins-SemiBold.ttf"):
+        path = resource_path(f"assets/fonts/{filename}")
+        if os.path.exists(path):
+            ctypes.windll.gdi32.AddFontResourceExW(path, FR_PRIVATE, 0)
 
 # ---------------------------------------------------------------- Theme
 # Deep-night / indie color palette: near-black navy base, a violet-blue
@@ -71,13 +85,14 @@ class HeroBanner(Canvas):
 
         self._library_button = ctk.CTkButton(
             self,
-            text="📁 Downloads  ›",
+            text="Downloads  ›",
             height=32,
             corner_radius=16,
             fg_color="#1E2350",
+            bg_color=_lerp_color(HERO_TOP, HERO_BOTTOM, 0.15),
             hover_color="#332764",
             text_color=TEXT_PRIMARY,
-            font=("Segoe UI", 12),
+            font=("Poppins", 12),
             command=on_library_click,
         )
         self._button_window = self.create_window(0, 0, anchor="ne", window=self._library_button)
@@ -107,19 +122,19 @@ class HeroBanner(Canvas):
         self.create_text(
             28,
             self._height * 0.40,
-            text="yt-dlp Downloader",
+            text="Video & Audio Converter",
             anchor="w",
             fill=TEXT_PRIMARY,
-            font=("Segoe UI Semibold", 23),
+            font=("Poppins SemiBold", 24),
             tags="bg",
         )
         self.create_text(
             28,
             self._height * 0.40 + 28,
-            text="Video- oder Playlist-URL einfügen und herunterladen.",
+            text="Paste a video or playlist URL and download it in seconds.",
             anchor="w",
             fill="#C7CBEE",
-            font=("Segoe UI", 12),
+            font=("Poppins", 12),
             tags="bg",
         )
 
@@ -145,7 +160,7 @@ class App(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
 
-        self.title("yt-dlp GUI Downloader")
+        self.title("Video & Audio Converter")
         self.geometry("900x680")
         self.minsize(820, 620)
         self.configure(fg_color=BG_DEEP)
@@ -162,8 +177,8 @@ class App(ctk.CTk):
 
         if not ffmpeg_available():
             self._append_log(
-                "Hinweis: ffmpeg wurde nicht gefunden. Für Audio-Extraktion und das "
-                "Zusammenführen mancher Formate wird ffmpeg benötigt (auf PATH installieren)."
+                "Note: ffmpeg wasn't found. It's required for audio extraction and for "
+                "merging some formats (install it and add it to PATH)."
             )
 
     # ------------------------------------------------------------------ UI
@@ -230,7 +245,7 @@ class App(ctk.CTk):
 
         browse_button = ctk.CTkButton(
             output_card,
-            text="Ordner wählen",
+            text="Choose Folder",
             width=120,
             height=38,
             corner_radius=10,
@@ -256,13 +271,13 @@ class App(ctk.CTk):
             dropdown_fg_color=BG_CARD,
             text_color=TEXT_PRIMARY,
         )
-        self.format_menu.set("Beste Qualität (Video+Audio)")
+        self.format_menu.set("Best Quality (Video+Audio)")
         self.format_menu.grid(row=0, column=0, padx=14, pady=14, sticky="w")
 
         self.playlist_var = ctk.BooleanVar(value=False)
         playlist_check = ctk.CTkCheckBox(
             options_card,
-            text="Ganze Playlist herunterladen",
+            text="Download entire playlist",
             variable=self.playlist_var,
             fg_color=ACCENT,
             hover_color=ACCENT_HOVER,
@@ -273,13 +288,13 @@ class App(ctk.CTk):
         # Download button
         self.download_button = ctk.CTkButton(
             body,
-            text="Herunterladen",
+            text="Download",
             height=46,
             corner_radius=23,
             fg_color=ACCENT,
             hover_color=ACCENT_HOVER,
             text_color="#0A0C22",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            font=ctk.CTkFont(family="Poppins SemiBold", size=15, weight="bold"),
             command=self._start_download,
         )
         self.download_button.grid(row=3, column=0, sticky="ew", pady=(0, 18))
@@ -298,7 +313,7 @@ class App(ctk.CTk):
         self.progress_label = ctk.CTkLabel(progress_frame, text="0%", width=44, text_color=TEXT_SECONDARY)
         self.progress_label.grid(row=0, column=1, padx=(8, 0))
 
-        self.status_label = ctk.CTkLabel(body, text="Bereit.", text_color=TEXT_SECONDARY, anchor="w")
+        self.status_label = ctk.CTkLabel(body, text="Ready.", text_color=TEXT_SECONDARY, anchor="w")
         self.status_label.grid(row=5, column=0, sticky="ew", pady=(4, 12))
 
         # Log
@@ -326,7 +341,7 @@ class App(ctk.CTk):
 
         back_button = ctk.CTkButton(
             top_row,
-            text="‹ Zurück",
+            text="‹ Back",
             width=90,
             height=34,
             corner_radius=10,
@@ -372,8 +387,8 @@ class App(ctk.CTk):
 
         if not self.player_widget.available:
             self._append_log(
-                "Hinweis: VLC wurde nicht gefunden. Installiere VLC Media Player, um Dateien "
-                "direkt in der App abzuspielen."
+                "Note: VLC wasn't found. Install VLC Media Player to play files directly "
+                "in the app."
             )
 
     # ------------------------------------------------------------ Actions
@@ -390,14 +405,14 @@ class App(ctk.CTk):
 
         url = self.url_entry.get().strip()
         if not url:
-            messagebox.showwarning("Keine URL", "Bitte zuerst eine Video- oder Playlist-URL eingeben.")
+            messagebox.showwarning("No URL", "Please enter a video or playlist URL first.")
             return
 
         output_dir = self.output_entry.get().strip() or DEFAULT_OUTPUT_DIR
         try:
             os.makedirs(output_dir, exist_ok=True)
         except OSError as exc:
-            messagebox.showerror("Ordnerfehler", f"Zielordner konnte nicht erstellt werden:\n{exc}")
+            messagebox.showerror("Folder Error", f"Couldn't create the destination folder:\n{exc}")
             return
 
         options = DownloadOptions(
@@ -411,7 +426,7 @@ class App(ctk.CTk):
         self._clear_log()
         self.progress_bar.set(0)
         self.progress_label.configure(text="0%")
-        self.status_label.configure(text="Starte Download...")
+        self.status_label.configure(text="Starting download...")
         self.mascot.show_exhausted()
 
         thread = threading.Thread(target=self._run_download, args=(options,), daemon=True)
@@ -457,31 +472,31 @@ class App(ctk.CTk):
                 fraction = min(downloaded / total, 1.0)
                 self.progress_bar.set(fraction)
                 self.progress_label.configure(text=f"{fraction * 100:.0f}%")
-            self.status_label.configure(text=f"Lade herunter: {filename}")
+            self.status_label.configure(text=f"Downloading: {filename}")
         elif status == "finished":
             self.progress_bar.set(1.0)
             self.progress_label.configure(text="100%")
-            self.status_label.configure(text="Verarbeite (Konvertierung / Zusammenführen)...")
+            self.status_label.configure(text="Processing (converting / merging)...")
 
     def _on_download_finished(self) -> None:
         self._set_download_active(False)
-        self.status_label.configure(text="Fertig!")
-        self._append_log("Download abgeschlossen.")
+        self.status_label.configure(text="Done!")
+        self._append_log("Download complete.")
         self._refresh_library()
         self.mascot.celebrate_and_hide()
 
     def _on_download_error(self, message: str) -> None:
         self._set_download_active(False)
-        self.status_label.configure(text="Fehler beim Download.")
-        self._append_log(f"FEHLER: {message}")
+        self.status_label.configure(text="Download failed.")
+        self._append_log(f"ERROR: {message}")
         self.mascot.hide_immediately()
-        messagebox.showerror("Download fehlgeschlagen", message)
+        messagebox.showerror("Download Failed", message)
 
     def _set_download_active(self, active: bool) -> None:
         self._download_active = active
         self.download_button.configure(
             state="disabled" if active else "normal",
-            text="Läuft..." if active else "Herunterladen",
+            text="Working..." if active else "Download",
         )
 
     # ---------------------------------------------------------- Library
@@ -509,7 +524,7 @@ class App(ctk.CTk):
         media_files = [p for p in entries if p.is_file() and p.suffix.lower() in MEDIA_EXTENSIONS]
 
         if not media_files:
-            empty_label = ctk.CTkLabel(self.file_list_frame, text="Keine Dateien gefunden.", text_color=TEXT_SECONDARY)
+            empty_label = ctk.CTkLabel(self.file_list_frame, text="No files found.", text_color=TEXT_SECONDARY)
             empty_label.pack(pady=12)
             return
 
@@ -529,9 +544,9 @@ class App(ctk.CTk):
     def _play_file(self, path: Path) -> None:
         if not self.player_widget.available:
             messagebox.showwarning(
-                "Player nicht verfügbar",
-                "VLC wurde nicht gefunden. Bitte installiere VLC Media Player, um Dateien "
-                "direkt in der App abzuspielen.",
+                "Player Unavailable",
+                "VLC wasn't found. Please install VLC Media Player to play files "
+                "directly in the app.",
             )
             return
         self.player_widget.load_and_play(str(path))
@@ -551,5 +566,6 @@ class App(ctk.CTk):
 
 
 if __name__ == "__main__":
+    load_private_fonts()
     app = App()
     app.mainloop()

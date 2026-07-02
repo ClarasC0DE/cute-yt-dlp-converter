@@ -19,4 +19,4 @@ if (-not (Test-Path ".\.venv")) {
     --add-data "assets;assets" `
     main.py
 
-Write-Host "`nFertig! Die exe liegt in dist\yt-dlp-gui.exe"
+Write-Host "`nDone! The exe is at dist\yt-dlp-gui.exe"
