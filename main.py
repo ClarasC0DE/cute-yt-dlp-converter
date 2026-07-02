@@ -14,6 +14,7 @@ from tkinter import Canvas, filedialog, messagebox
 import customtkinter as ctk
 
 from downloader import AUDIO_ONLY_LABEL, FORMAT_PRESETS, DownloadOptions, GuiLogger, download, ffmpeg_available
+from player import MEDIA_EXTENSIONS, VIDEO_EXTENSIONS, PlayerWidget
 
 ctk.set_appearance_mode("dark")
 
@@ -48,9 +49,10 @@ def _lerp_color(color_a: str, color_b: str, t: float) -> str:
 
 
 class HeroBanner(Canvas):
-    """A small gradient 'night sky' banner with a title, subtitle and stars."""
+    """A small gradient 'night sky' banner with a title, subtitle, stars and a
+    library shortcut button."""
 
-    def __init__(self, master, height: int = 150) -> None:
+    def __init__(self, master, on_library_click, height: int = 150) -> None:
         super().__init__(master, height=height, highlightthickness=0, bg=HERO_TOP)
         self._height = height
         self._last_width = -1
@@ -58,6 +60,20 @@ class HeroBanner(Canvas):
             (random.uniform(0.04, 0.7), random.uniform(0.15, 0.85), random.uniform(1.0, 2.3))
             for _ in range(24)
         ]
+
+        self._library_button = ctk.CTkButton(
+            self,
+            text="📁 Downloads  ›",
+            height=32,
+            corner_radius=16,
+            fg_color="#1E2350",
+            hover_color="#332764",
+            text_color=TEXT_PRIMARY,
+            font=("Segoe UI", 12),
+            command=on_library_click,
+        )
+        self._button_window = self.create_window(0, 0, anchor="ne", window=self._library_button)
+
         self.bind("<Configure>", self._on_resize)
 
     def _on_resize(self, event) -> None:
@@ -67,18 +83,18 @@ class HeroBanner(Canvas):
         self._redraw(event.width)
 
     def _redraw(self, width: int) -> None:
-        self.delete("all")
+        self.delete("bg")
         steps = 48
         for i in range(steps):
             t = i / (steps - 1)
             color = _lerp_color(HERO_TOP, HERO_BOTTOM, t)
             y0 = int(self._height * i / steps)
             y1 = int(self._height * (i + 1) / steps) + 1
-            self.create_rectangle(0, y0, width, y1, fill=color, outline="")
+            self.create_rectangle(0, y0, width, y1, fill=color, outline="", tags="bg")
 
         for rel_x, rel_y, radius in self._stars:
             x, y = rel_x * width, rel_y * self._height
-            self.create_oval(x - radius, y - radius, x + radius, y + radius, fill="#CFE0FF", outline="")
+            self.create_oval(x - radius, y - radius, x + radius, y + radius, fill="#CFE0FF", outline="", tags="bg")
 
         self.create_text(
             28,
@@ -87,6 +103,7 @@ class HeroBanner(Canvas):
             anchor="w",
             fill=TEXT_PRIMARY,
             font=("Segoe UI Semibold", 23),
+            tags="bg",
         )
         self.create_text(
             28,
@@ -95,7 +112,11 @@ class HeroBanner(Canvas):
             anchor="w",
             fill="#C7CBEE",
             font=("Segoe UI", 12),
+            tags="bg",
         )
+
+        self.coords(self._button_window, width - 20, 22)
+        self.tag_lower("bg")
 
 
 class Card(ctk.CTkFrame):
@@ -117,8 +138,8 @@ class App(ctk.CTk):
         super().__init__()
 
         self.title("yt-dlp GUI Downloader")
-        self.geometry("740x660")
-        self.minsize(660, 600)
+        self.geometry("900x680")
+        self.minsize(820, 620)
         self.configure(fg_color=BG_DEEP)
 
         self._event_queue: "queue.Queue[tuple[str, object]]" = queue.Queue()
@@ -138,14 +159,28 @@ class App(ctk.CTk):
     def _build_layout(self) -> None:
         self.grid_columnconfigure(0, weight=1)
 
-        hero = HeroBanner(self)
+        hero = HeroBanner(self, on_library_click=self._show_library)
         hero.grid(row=0, column=0, sticky="ew")
 
-        body = ctk.CTkFrame(self, fg_color="transparent")
-        body.grid(row=1, column=0, padx=24, pady=20, sticky="nsew")
-        body.grid_columnconfigure(0, weight=1)
+        container = ctk.CTkFrame(self, fg_color="transparent")
+        container.grid(row=1, column=0, padx=24, pady=20, sticky="nsew")
+        container.grid_columnconfigure(0, weight=1)
+        container.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
+        self.download_view = ctk.CTkFrame(container, fg_color="transparent")
+        self.download_view.grid(row=0, column=0, sticky="nsew")
+        self.download_view.grid_columnconfigure(0, weight=1)
+
+        self.library_view = ctk.CTkFrame(container, fg_color="transparent")
+        self.library_view.grid(row=0, column=0, sticky="nsew")
+
+        self._build_download_view(self.download_view)
+        self._build_library_view(self.library_view)
+
+        self.download_view.tkraise()
+
+    def _build_download_view(self, body: ctk.CTkFrame) -> None:
         entry_style = dict(
             fg_color=BG_DEEP,
             border_color=BG_CARD_BORDER,
@@ -261,6 +296,67 @@ class App(ctk.CTk):
         self.log_box.grid(row=6, column=0, sticky="nsew")
         body.grid_rowconfigure(6, weight=1)
 
+    def _build_library_view(self, view: ctk.CTkFrame) -> None:
+        view.grid_columnconfigure(0, weight=0)
+        view.grid_columnconfigure(1, weight=1)
+        view.grid_rowconfigure(1, weight=1)
+
+        top_row = ctk.CTkFrame(view, fg_color="transparent")
+        top_row.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 14))
+        top_row.grid_columnconfigure(1, weight=1)
+
+        back_button = ctk.CTkButton(
+            top_row,
+            text="‹ Zurück",
+            width=90,
+            height=34,
+            corner_radius=10,
+            fg_color=BG_CARD_BORDER,
+            hover_color=ACCENT,
+            text_color=TEXT_PRIMARY,
+            command=self._show_downloader,
+        )
+        back_button.grid(row=0, column=0, sticky="w")
+
+        self.library_path_label = ctk.CTkLabel(top_row, text=DEFAULT_OUTPUT_DIR, text_color=TEXT_SECONDARY)
+        self.library_path_label.grid(row=0, column=1, padx=14, sticky="w")
+
+        refresh_button = ctk.CTkButton(
+            top_row,
+            text="⟳",
+            width=36,
+            height=34,
+            corner_radius=10,
+            fg_color=BG_CARD_BORDER,
+            hover_color=ACCENT,
+            text_color=TEXT_PRIMARY,
+            command=self._refresh_library,
+        )
+        refresh_button.grid(row=0, column=2, sticky="e")
+
+        list_card = Card(view, width=240)
+        list_card.grid(row=1, column=0, sticky="nsew", padx=(0, 14))
+        list_card.grid_propagate(False)
+
+        self.file_list_frame = ctk.CTkScrollableFrame(list_card, fg_color="transparent")
+        self.file_list_frame.pack(fill="both", expand=True, padx=6, pady=6)
+
+        self.player_widget = PlayerWidget(
+            view,
+            accent=ACCENT,
+            card_color=BG_CARD,
+            border_color=BG_CARD_BORDER,
+            text_color=TEXT_PRIMARY,
+            muted_color=TEXT_SECONDARY,
+        )
+        self.player_widget.grid(row=1, column=1, sticky="nsew")
+
+        if not self.player_widget.available:
+            self._append_log(
+                "Hinweis: VLC wurde nicht gefunden. Installiere VLC Media Player, um Dateien "
+                "direkt in der App abzuspielen."
+            )
+
     # ------------------------------------------------------------ Actions
 
     def _browse_output_dir(self) -> None:
@@ -351,6 +447,7 @@ class App(ctk.CTk):
         self._set_download_active(False)
         self.status_label.configure(text="Fertig!")
         self._append_log("Download abgeschlossen.")
+        self._refresh_library()
 
     def _on_download_error(self, message: str) -> None:
         self._set_download_active(False)
@@ -364,6 +461,58 @@ class App(ctk.CTk):
             state="disabled" if active else "normal",
             text="Läuft..." if active else "Herunterladen",
         )
+
+    # ---------------------------------------------------------- Library
+
+    def _show_library(self) -> None:
+        self._refresh_library()
+        self.library_view.tkraise()
+
+    def _show_downloader(self) -> None:
+        self.player_widget.stop()
+        self.download_view.tkraise()
+
+    def _refresh_library(self) -> None:
+        output_dir = self.output_entry.get().strip() or DEFAULT_OUTPUT_DIR
+        self.library_path_label.configure(text=output_dir)
+
+        for child in self.file_list_frame.winfo_children():
+            child.destroy()
+
+        try:
+            entries = sorted(Path(output_dir).iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
+        except OSError:
+            entries = []
+
+        media_files = [p for p in entries if p.is_file() and p.suffix.lower() in MEDIA_EXTENSIONS]
+
+        if not media_files:
+            empty_label = ctk.CTkLabel(self.file_list_frame, text="Keine Dateien gefunden.", text_color=TEXT_SECONDARY)
+            empty_label.pack(pady=12)
+            return
+
+        for path in media_files:
+            icon = "🎬" if path.suffix.lower() in VIDEO_EXTENSIONS else "🎵"
+            row = ctk.CTkButton(
+                self.file_list_frame,
+                text=f"{icon}  {path.name}",
+                anchor="w",
+                fg_color="transparent",
+                hover_color=BG_CARD_BORDER,
+                text_color=TEXT_PRIMARY,
+                command=lambda p=path: self._play_file(p),
+            )
+            row.pack(fill="x", pady=2)
+
+    def _play_file(self, path: Path) -> None:
+        if not self.player_widget.available:
+            messagebox.showwarning(
+                "Player nicht verfügbar",
+                "VLC wurde nicht gefunden. Bitte installiere VLC Media Player, um Dateien "
+                "direkt in der App abzuspielen.",
+            )
+            return
+        self.player_widget.load_and_play(str(path))
 
     # -------------------------------------------------------------- Log
 

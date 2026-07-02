@@ -9,12 +9,19 @@ um Videos und Playlists bequem herunterzuladen — als eigenständige Windows-`.
 - Qualitätsauswahl (Beste Qualität, 1080p, 720p, 480p, Nur Audio als MP3)
 - Playlist-Unterstützung
 - Live-Fortschrittsanzeige + Log-Ausgabe
+- Eingebaute Bibliotheks-Ansicht (Button "📁 Downloads" oben rechts): zeigt alle
+  heruntergeladenen Video-/Audiodateien im Zielordner und spielt sie direkt in der
+  App ab (Play/Pause, Fortschrittsleiste, Lautstärke)
 - Läuft als portable Einzeldatei-`.exe`
 
 ## Voraussetzungen
 
 - [ffmpeg](https://ffmpeg.org/download.html) muss installiert und im `PATH` verfügbar sein
   (wird für Zusammenführen von Video/Audio sowie für die MP3-Konvertierung benötigt).
+- [VLC Media Player](https://www.videolan.org/vlc/) muss installiert sein, damit die
+  eingebaute Wiedergabe in der Bibliotheks-Ansicht funktioniert (nutzt `libvlc` über
+  `python-vlc`). Ohne VLC funktioniert der Rest der App normal, die Wiedergabe zeigt
+  dann nur einen Hinweis.
 
 ## Entwicklung / Start ohne exe
 
