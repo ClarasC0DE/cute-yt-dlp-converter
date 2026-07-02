@@ -1,6 +1,7 @@
 """Embedded media playback for the downloads library, backed by libVLC."""
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from tkinter import Frame
@@ -19,6 +20,14 @@ except Exception:  # noqa: BLE001 - libvlc may simply not be installed
 VIDEO_EXTENSIONS = {".mp4", ".mkv", ".webm", ".avi", ".mov", ".m4v"}
 AUDIO_EXTENSIONS = {".mp3", ".m4a", ".opus", ".wav", ".flac", ".ogg", ".aac"}
 MEDIA_EXTENSIONS = VIDEO_EXTENSIONS | AUDIO_EXTENSIONS
+
+
+def play_sound_effect(path: str) -> None:
+    """Fire-and-forget playback of a short one-shot sound effect."""
+    if not VLC_AVAILABLE or not os.path.exists(path):
+        return
+    effect_player = vlc.MediaPlayer(path)
+    effect_player.play()
 
 
 def _format_time(ms: int) -> str:

@@ -15,6 +15,7 @@ from tkinter import Canvas, filedialog, messagebox
 import customtkinter as ctk
 
 from downloader import AUDIO_ONLY_LABEL, FORMAT_PRESETS, DownloadOptions, GuiLogger, download, ffmpeg_available
+from mascot import MascotOverlay
 from player import MEDIA_EXTENSIONS, VIDEO_EXTENSIONS, PlayerWidget
 
 ctk.set_appearance_mode("dark")
@@ -188,6 +189,14 @@ class App(ctk.CTk):
 
         self._build_download_view(self.download_view)
         self._build_library_view(self.library_view)
+
+        self.mascot = MascotOverlay(
+            container,
+            exhausted_path=resource_path("assets/cat_exhausted.png"),
+            happy_path=resource_path("assets/cat_happy.png"),
+            sound_path=resource_path("assets/sparkle.mp3"),
+            bg_color=BG_DEEP,
+        )
 
         self.download_view.tkraise()
 
@@ -404,6 +413,7 @@ class App(ctk.CTk):
         self.progress_bar.set(0)
         self.progress_label.configure(text="0%")
         self.status_label.configure(text="Starte Download...")
+        self.mascot.show_exhausted()
 
         thread = threading.Thread(target=self._run_download, args=(options,), daemon=True)
         thread.start()
@@ -459,11 +469,13 @@ class App(ctk.CTk):
         self.status_label.configure(text="Fertig!")
         self._append_log("Download abgeschlossen.")
         self._refresh_library()
+        self.mascot.celebrate_and_hide()
 
     def _on_download_error(self, message: str) -> None:
         self._set_download_active(False)
         self.status_label.configure(text="Fehler beim Download.")
         self._append_log(f"FEHLER: {message}")
+        self.mascot.hide_immediately()
         messagebox.showerror("Download fehlgeschlagen", message)
 
     def _set_download_active(self, active: bool) -> None:
