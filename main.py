@@ -6,18 +6,110 @@ from __future__ import annotations
 
 import os
 import queue
+import random
 import threading
 from pathlib import Path
-from tkinter import filedialog, messagebox
+from tkinter import Canvas, filedialog, messagebox
 
 import customtkinter as ctk
 
 from downloader import AUDIO_ONLY_LABEL, FORMAT_PRESETS, DownloadOptions, GuiLogger, download, ffmpeg_available
 
 ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("blue")
+
+# ---------------------------------------------------------------- Theme
+# Deep-night / indie color palette: near-black navy base, a violet-blue
+# accent, and a soft gradient + stars in the hero banner.
+
+BG_DEEP = "#0A0C22"
+BG_CARD = "#151935"
+BG_CARD_BORDER = "#262B54"
+ACCENT = "#7C6FFF"
+ACCENT_HOVER = "#9184FF"
+HERO_TOP = "#0A0C22"
+HERO_BOTTOM = "#332764"
+TEXT_PRIMARY = "#F5F6FA"
+TEXT_SECONDARY = "#9DA3C4"
 
 DEFAULT_OUTPUT_DIR = str(Path.home() / "Downloads" / "yt-dlp-gui")
+
+
+def _hex_to_rgb(value: str) -> tuple[int, int, int]:
+    value = value.lstrip("#")
+    return int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
+
+
+def _lerp_color(color_a: str, color_b: str, t: float) -> str:
+    ar, ag, ab = _hex_to_rgb(color_a)
+    br, bg, bb = _hex_to_rgb(color_b)
+    return "#{:02x}{:02x}{:02x}".format(
+        int(ar + (br - ar) * t), int(ag + (bg - ag) * t), int(ab + (bb - ab) * t)
+    )
+
+
+class HeroBanner(Canvas):
+    """A small gradient 'night sky' banner with a title, subtitle and stars."""
+
+    def __init__(self, master, height: int = 150) -> None:
+        super().__init__(master, height=height, highlightthickness=0, bg=HERO_TOP)
+        self._height = height
+        self._last_width = -1
+        self._stars = [
+            (random.uniform(0.04, 0.7), random.uniform(0.15, 0.85), random.uniform(1.0, 2.3))
+            for _ in range(24)
+        ]
+        self.bind("<Configure>", self._on_resize)
+
+    def _on_resize(self, event) -> None:
+        if event.width == self._last_width:
+            return
+        self._last_width = event.width
+        self._redraw(event.width)
+
+    def _redraw(self, width: int) -> None:
+        self.delete("all")
+        steps = 48
+        for i in range(steps):
+            t = i / (steps - 1)
+            color = _lerp_color(HERO_TOP, HERO_BOTTOM, t)
+            y0 = int(self._height * i / steps)
+            y1 = int(self._height * (i + 1) / steps) + 1
+            self.create_rectangle(0, y0, width, y1, fill=color, outline="")
+
+        for rel_x, rel_y, radius in self._stars:
+            x, y = rel_x * width, rel_y * self._height
+            self.create_oval(x - radius, y - radius, x + radius, y + radius, fill="#CFE0FF", outline="")
+
+        self.create_text(
+            28,
+            self._height * 0.40,
+            text="yt-dlp Downloader",
+            anchor="w",
+            fill=TEXT_PRIMARY,
+            font=("Segoe UI Semibold", 23),
+        )
+        self.create_text(
+            28,
+            self._height * 0.40 + 28,
+            text="Video- oder Playlist-URL einfügen und herunterladen.",
+            anchor="w",
+            fill="#C7CBEE",
+            font=("Segoe UI", 12),
+        )
+
+
+class Card(ctk.CTkFrame):
+    """A rounded, slightly-lighter panel used to group related controls."""
+
+    def __init__(self, master, **kwargs) -> None:
+        super().__init__(
+            master,
+            fg_color=BG_CARD,
+            corner_radius=14,
+            border_width=1,
+            border_color=BG_CARD_BORDER,
+            **kwargs,
+        )
 
 
 class App(ctk.CTk):
@@ -25,8 +117,9 @@ class App(ctk.CTk):
         super().__init__()
 
         self.title("yt-dlp GUI Downloader")
-        self.geometry("720x600")
-        self.minsize(640, 560)
+        self.geometry("740x660")
+        self.minsize(660, 600)
+        self.configure(fg_color=BG_DEEP)
 
         self._event_queue: "queue.Queue[tuple[str, object]]" = queue.Queue()
         self._download_active = False
@@ -45,85 +138,128 @@ class App(ctk.CTk):
     def _build_layout(self) -> None:
         self.grid_columnconfigure(0, weight=1)
 
-        header = ctk.CTkLabel(
-            self, text="yt-dlp Downloader", font=ctk.CTkFont(size=24, weight="bold")
-        )
-        header.grid(row=0, column=0, padx=24, pady=(24, 8), sticky="w")
+        hero = HeroBanner(self)
+        hero.grid(row=0, column=0, sticky="ew")
 
-        subtitle = ctk.CTkLabel(
-            self,
-            text="Video- oder Playlist-URL einfügen und herunterladen.",
-            text_color="gray60",
-        )
-        subtitle.grid(row=1, column=0, padx=24, pady=(0, 16), sticky="w")
+        body = ctk.CTkFrame(self, fg_color="transparent")
+        body.grid(row=1, column=0, padx=24, pady=20, sticky="nsew")
+        body.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
-        # URL row
-        url_frame = ctk.CTkFrame(self, fg_color="transparent")
-        url_frame.grid(row=2, column=0, padx=24, pady=4, sticky="ew")
-        url_frame.grid_columnconfigure(0, weight=1)
+        entry_style = dict(
+            fg_color=BG_DEEP,
+            border_color=BG_CARD_BORDER,
+            text_color=TEXT_PRIMARY,
+            placeholder_text_color=TEXT_SECONDARY,
+            height=38,
+            corner_radius=10,
+        )
+
+        # URL card
+        url_card = Card(body)
+        url_card.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        url_card.grid_columnconfigure(0, weight=1)
 
         self.url_entry = ctk.CTkEntry(
-            url_frame, placeholder_text="https://www.youtube.com/watch?v=...", height=40
+            url_card, placeholder_text="https://www.youtube.com/watch?v=...", **entry_style
         )
-        self.url_entry.grid(row=0, column=0, sticky="ew")
+        self.url_entry.grid(row=0, column=0, padx=14, pady=14, sticky="ew")
 
-        # Output dir row
-        output_frame = ctk.CTkFrame(self, fg_color="transparent")
-        output_frame.grid(row=3, column=0, padx=24, pady=4, sticky="ew")
-        output_frame.grid_columnconfigure(0, weight=1)
+        # Output dir card
+        output_card = Card(body)
+        output_card.grid(row=1, column=0, sticky="ew", pady=(0, 12))
+        output_card.grid_columnconfigure(0, weight=1)
 
-        self.output_entry = ctk.CTkEntry(output_frame, height=40)
+        self.output_entry = ctk.CTkEntry(output_card, **entry_style)
         self.output_entry.insert(0, DEFAULT_OUTPUT_DIR)
-        self.output_entry.grid(row=0, column=0, sticky="ew")
+        self.output_entry.grid(row=0, column=0, padx=(14, 8), pady=14, sticky="ew")
 
         browse_button = ctk.CTkButton(
-            output_frame, text="Ordner wählen", width=120, height=40, command=self._browse_output_dir
+            output_card,
+            text="Ordner wählen",
+            width=120,
+            height=38,
+            corner_radius=10,
+            fg_color=BG_CARD_BORDER,
+            hover_color=ACCENT,
+            text_color=TEXT_PRIMARY,
+            command=self._browse_output_dir,
         )
-        browse_button.grid(row=0, column=1, padx=(8, 0))
+        browse_button.grid(row=0, column=1, padx=(0, 14), pady=14)
 
-        # Format + playlist row
-        options_frame = ctk.CTkFrame(self, fg_color="transparent")
-        options_frame.grid(row=4, column=0, padx=24, pady=(12, 4), sticky="ew")
+        # Options card
+        options_card = Card(body)
+        options_card.grid(row=2, column=0, sticky="ew", pady=(0, 20))
 
-        self.format_menu = ctk.CTkOptionMenu(options_frame, values=list(FORMAT_PRESETS.keys()), height=36)
+        self.format_menu = ctk.CTkOptionMenu(
+            options_card,
+            values=list(FORMAT_PRESETS.keys()),
+            height=36,
+            corner_radius=10,
+            fg_color=BG_CARD_BORDER,
+            button_color=ACCENT,
+            button_hover_color=ACCENT_HOVER,
+            dropdown_fg_color=BG_CARD,
+            text_color=TEXT_PRIMARY,
+        )
         self.format_menu.set("Beste Qualität (Video+Audio)")
-        self.format_menu.grid(row=0, column=0, sticky="w")
+        self.format_menu.grid(row=0, column=0, padx=14, pady=14, sticky="w")
 
         self.playlist_var = ctk.BooleanVar(value=False)
         playlist_check = ctk.CTkCheckBox(
-            options_frame, text="Ganze Playlist herunterladen", variable=self.playlist_var
+            options_card,
+            text="Ganze Playlist herunterladen",
+            variable=self.playlist_var,
+            fg_color=ACCENT,
+            hover_color=ACCENT_HOVER,
+            text_color=TEXT_PRIMARY,
         )
-        playlist_check.grid(row=0, column=1, padx=(20, 0), sticky="w")
+        playlist_check.grid(row=0, column=1, padx=(20, 14), pady=14, sticky="w")
 
         # Download button
         self.download_button = ctk.CTkButton(
-            self,
+            body,
             text="Herunterladen",
-            height=44,
-            font=ctk.CTkFont(size=15, weight="bold"),
+            height=46,
+            corner_radius=23,
+            fg_color=ACCENT,
+            hover_color=ACCENT_HOVER,
+            text_color="#0A0C22",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
             command=self._start_download,
         )
-        self.download_button.grid(row=5, column=0, padx=24, pady=(16, 8), sticky="ew")
+        self.download_button.grid(row=3, column=0, sticky="ew", pady=(0, 18))
 
         # Progress
-        progress_frame = ctk.CTkFrame(self, fg_color="transparent")
-        progress_frame.grid(row=6, column=0, padx=24, pady=(4, 4), sticky="ew")
+        progress_frame = ctk.CTkFrame(body, fg_color="transparent")
+        progress_frame.grid(row=4, column=0, sticky="ew", pady=(0, 4))
         progress_frame.grid_columnconfigure(0, weight=1)
 
-        self.progress_bar = ctk.CTkProgressBar(progress_frame)
+        self.progress_bar = ctk.CTkProgressBar(
+            progress_frame, progress_color=ACCENT, fg_color=BG_CARD_BORDER, height=8, corner_radius=4
+        )
         self.progress_bar.set(0)
         self.progress_bar.grid(row=0, column=0, sticky="ew")
 
-        self.progress_label = ctk.CTkLabel(progress_frame, text="0%", width=48)
+        self.progress_label = ctk.CTkLabel(progress_frame, text="0%", width=44, text_color=TEXT_SECONDARY)
         self.progress_label.grid(row=0, column=1, padx=(8, 0))
 
-        self.status_label = ctk.CTkLabel(self, text="Bereit.", text_color="gray60", anchor="w")
-        self.status_label.grid(row=7, column=0, padx=24, pady=(4, 8), sticky="ew")
+        self.status_label = ctk.CTkLabel(body, text="Bereit.", text_color=TEXT_SECONDARY, anchor="w")
+        self.status_label.grid(row=5, column=0, sticky="ew", pady=(4, 12))
 
         # Log
-        self.log_box = ctk.CTkTextbox(self, height=200, state="disabled")
-        self.log_box.grid(row=8, column=0, padx=24, pady=(0, 24), sticky="nsew")
-        self.grid_rowconfigure(8, weight=1)
+        self.log_box = ctk.CTkTextbox(
+            body,
+            fg_color=BG_CARD,
+            border_width=1,
+            border_color=BG_CARD_BORDER,
+            corner_radius=14,
+            text_color=TEXT_SECONDARY,
+            font=("Consolas", 11),
+            state="disabled",
+        )
+        self.log_box.grid(row=6, column=0, sticky="nsew")
+        body.grid_rowconfigure(6, weight=1)
 
     # ------------------------------------------------------------ Actions
 
