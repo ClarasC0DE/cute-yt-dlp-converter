@@ -60,6 +60,9 @@ def build_ydl_opts(options: DownloadOptions, progress_hook: Callable, logger: Gu
         "progress_hooks": [progress_hook],
         "logger": logger,
         "merge_output_format": "mp4",
+        # Prefer H.264 over HEVC/AV1/VP9 so downloads play back everywhere
+        # without needing extra OS codec packs.
+        "format_sort": ["vcodec:h264"],
     }
 
     if options.format_label == AUDIO_ONLY_LABEL:
