@@ -15,6 +15,8 @@ if (-not (Test-Path ".\.venv")) {
     --onefile `
     --windowed `
     --name "yt-dlp-gui" `
+    --icon "assets\icon.ico" `
+    --add-data "assets;assets" `
     main.py
 
 Write-Host "`nFertig! Die exe liegt in dist\yt-dlp-gui.exe"

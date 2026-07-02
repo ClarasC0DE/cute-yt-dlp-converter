@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import queue
 import random
+import sys
 import threading
 from pathlib import Path
 from tkinter import Canvas, filedialog, messagebox
@@ -17,6 +18,12 @@ from downloader import AUDIO_ONLY_LABEL, FORMAT_PRESETS, DownloadOptions, GuiLog
 from player import MEDIA_EXTENSIONS, VIDEO_EXTENSIONS, PlayerWidget
 
 ctk.set_appearance_mode("dark")
+
+
+def resource_path(relative_path: str) -> str:
+    """Resolve a bundled asset both when run from source and from a PyInstaller exe."""
+    base_path = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, relative_path)
 
 # ---------------------------------------------------------------- Theme
 # Deep-night / indie color palette: near-black navy base, a violet-blue
@@ -141,6 +148,10 @@ class App(ctk.CTk):
         self.geometry("900x680")
         self.minsize(820, 620)
         self.configure(fg_color=BG_DEEP)
+
+        icon_path = resource_path("assets/icon.ico")
+        if os.path.exists(icon_path):
+            self.iconbitmap(icon_path)
 
         self._event_queue: "queue.Queue[tuple[str, object]]" = queue.Queue()
         self._download_active = False
