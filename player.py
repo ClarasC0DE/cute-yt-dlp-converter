@@ -37,8 +37,11 @@ class PlayerWidget(ctk.CTkFrame):
         super().__init__(master, fg_color="transparent")
 
         self._accent = accent
+        self._border_color = border_color
         self._muted_color = muted_color
         self._seeking = False
+        self._loop_enabled = False
+        self._restarting = False
         self._current_path: Optional[str] = None
 
         self._instance = vlc.Instance("--quiet") if VLC_AVAILABLE else None
@@ -106,12 +109,25 @@ class PlayerWidget(ctk.CTkFrame):
             command=self._on_volume_change,
         )
         self.volume_slider.set(80)
-        self.volume_slider.grid(row=0, column=3, padx=(0, 14), pady=12)
+        self.volume_slider.grid(row=0, column=3, padx=(0, 10), pady=12)
+
+        self.loop_button = ctk.CTkButton(
+            controls,
+            text="🔁",
+            width=36,
+            height=32,
+            corner_radius=16,
+            fg_color=border_color,
+            hover_color=accent,
+            text_color=text_color,
+            command=self._toggle_loop,
+        )
+        self.loop_button.grid(row=0, column=4, padx=(0, 14), pady=12)
 
         if self._player:
             self._player.audio_set_volume(80)
             self.after(200, self._embed_video_surface)
-            self.after(300, self._update_loop)
+            self.after(300, self._tick)
 
     # ------------------------------------------------------------ Public
 
@@ -123,6 +139,7 @@ class PlayerWidget(ctk.CTkFrame):
         if not self.available:
             return
         self._current_path = path
+        self._restarting = False
         media = self._instance.media_new(path)
         self._player.set_media(media)
         self.placeholder_label.place_forget()
@@ -174,13 +191,29 @@ class PlayerWidget(ctk.CTkFrame):
         if self.available:
             self._player.audio_set_volume(int(value))
 
-    def _update_loop(self) -> None:
+    def _toggle_loop(self) -> None:
+        self._loop_enabled = not self._loop_enabled
+        self.loop_button.configure(fg_color=self._accent if self._loop_enabled else self._border_color)
+
+    def _tick(self) -> None:
         if self.available and self._current_path and not self._seeking:
             length = self._player.get_length()
             position = self._player.get_time()
             if length > 0:
                 self.seek_slider.set(max(0, min(1000, position / length * 1000)))
                 self.time_label.configure(text=f"{_format_time(position)} / {_format_time(length)}")
-            if not self._player.is_playing() and self._player.get_state() == vlc.State.Ended:
-                self.play_button.configure(text="▶")
-        self.after(300, self._update_loop)
+            if not self._restarting and not self._player.is_playing() and self._player.get_state() == vlc.State.Ended:
+                if self._loop_enabled:
+                    # libVLC needs an explicit stop() before it will resume
+                    # from "Ended", and calling play() immediately after can
+                    # race with that teardown, so give it a brief moment.
+                    self._restarting = True
+                    self._player.stop()
+                    self.after(80, self._restart_playback)
+                else:
+                    self.play_button.configure(text="▶")
+        self.after(300, self._tick)
+
+    def _restart_playback(self) -> None:
+        self._player.play()
+        self._restarting = False
