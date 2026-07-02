@@ -195,7 +195,6 @@ class App(ctk.CTk):
             exhausted_path=resource_path("assets/cat_exhausted.png"),
             happy_path=resource_path("assets/cat_happy.png"),
             sound_path=resource_path("assets/sparkle.mp3"),
-            bg_color=BG_DEEP,
         )
 
         self.download_view.tkraise()
