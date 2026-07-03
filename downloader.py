@@ -8,6 +8,8 @@ from typing import Callable
 
 import yt_dlp
 
+from paths import resource_path
+
 FORMAT_PRESETS = {
     "Best Quality (Video+Audio)": "bestvideo+bestaudio/best",
     "1080p": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
@@ -48,7 +50,14 @@ class GuiLogger:
         self._on_message(f"ERROR: {msg}")
 
 
+def _bundled_ffmpeg_dir() -> str:
+    return resource_path("assets/ffmpeg")
+
+
 def ffmpeg_available() -> bool:
+    bundled = os.path.join(_bundled_ffmpeg_dir(), "ffmpeg.exe")
+    if os.path.exists(bundled):
+        return True
     return shutil.which("ffmpeg") is not None
 
 
@@ -64,6 +73,10 @@ def build_ydl_opts(options: DownloadOptions, progress_hook: Callable, logger: Gu
         # without needing extra OS codec packs.
         "format_sort": ["vcodec:h264"],
     }
+
+    bundled_dir = _bundled_ffmpeg_dir()
+    if os.path.exists(os.path.join(bundled_dir, "ffmpeg.exe")):
+        opts["ffmpeg_location"] = bundled_dir
 
     if options.format_label == AUDIO_ONLY_LABEL:
         opts["postprocessors"] = [

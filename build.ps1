@@ -10,6 +10,8 @@ if (-not (Test-Path ".\.venv")) {
 .\.venv\Scripts\pip install --upgrade pip
 .\.venv\Scripts\pip install -r requirements.txt
 
+.\scripts\fetch-ffmpeg.ps1
+
 .\.venv\Scripts\pyinstaller `
     --noconfirm `
     --onefile `

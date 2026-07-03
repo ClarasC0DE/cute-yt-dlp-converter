@@ -6,8 +6,9 @@ for downloading and converting videos and playlists — packaged as a standalone
 ## Download
 
 **[⬇ Download the latest yt-dlp-gui.exe](https://github.com/ClarasC0DE/cute-yt-dlp-converter/releases/latest/download/yt-dlp-gui.exe)**
-— no Python install needed, just run it. See [Requirements](#requirements) below for
-what needs to be installed alongside it.
+(~130 MB, ffmpeg is bundled in) — no Python install needed, just run it. See
+[Requirements](#requirements) below for the one thing (VLC) that still needs
+to be installed separately.
 
 ## Features
 
@@ -20,12 +21,12 @@ what needs to be installed alongside it.
   video/audio file in the destination folder and plays it directly in the app
   (play/pause, seek bar, volume, loop)
 - A little cat mascot that celebrates when your download finishes
+- ffmpeg/ffprobe are bundled directly in the exe — nothing to install separately
+  for merging video/audio or converting to MP3
 - Runs as a portable single-file `.exe`
 
 ## Requirements
 
-- [ffmpeg](https://ffmpeg.org/download.html) must be installed and available on
-  `PATH` (needed for merging video/audio and for MP3 conversion).
 - [VLC Media Player](https://www.videolan.org/vlc/) must be installed for the
   built-in library playback to work (uses `libvlc` via `python-vlc`). Without
   VLC, the rest of the app still works normally — playback just shows a notice.
@@ -38,13 +39,19 @@ py -m venv .venv
 .venv\Scripts\python main.py
 ```
 
+Running from source falls back to a system-installed `ffmpeg` on `PATH` unless
+`assets\ffmpeg\ffmpeg.exe` is present (run `.\scripts\fetch-ffmpeg.ps1` to fetch it).
+
 ## Build the Windows exe
 
 ```powershell
 .\build.ps1
 ```
 
-The finished `.exe` will be at `dist\yt-dlp-gui.exe`.
+This also fetches `ffmpeg.exe`/`ffprobe.exe` (an LGPL build from
+[BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds)) into `assets\ffmpeg`
+the first time, since those binaries are too large to commit to the repo. The
+finished `.exe` will be at `dist\yt-dlp-gui.exe`.
 
 ## Known limitation
 

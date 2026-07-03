@@ -1,0 +1,6 @@
+ffmpeg.exe and ffprobe.exe
+Built by the FFmpeg project (https://ffmpeg.org)
+Windows binaries from BtbN/FFmpeg-Builds (https://github.com/BtbN/FFmpeg-Builds),
+build variant "win64-lgpl" — licensed under the GNU Lesser General Public
+License v3 (see LICENSE.txt in this folder). No modifications were made to
+the binaries.

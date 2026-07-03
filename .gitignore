@@ -7,3 +7,4 @@ dist/
 *.spec
 downloads/
 Videos/
+assets/ffmpeg/*.exe

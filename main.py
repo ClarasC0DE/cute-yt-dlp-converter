@@ -19,17 +19,12 @@ from PIL import Image, ImageDraw, ImageFilter, ImageTk
 
 from downloader import AUDIO_ONLY_LABEL, FORMAT_PRESETS, DownloadOptions, GuiLogger, download, ffmpeg_available
 from mascot import MascotOverlay
+from paths import resource_path
 from player import MEDIA_EXTENSIONS, VIDEO_EXTENSIONS, PlayerWidget
 
 ctk.set_appearance_mode("dark")
 
 FR_PRIVATE = 0x10
-
-
-def resource_path(relative_path: str) -> str:
-    """Resolve a bundled asset both when run from source and from a PyInstaller exe."""
-    base_path = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(base_path, relative_path)
 
 
 def load_private_fonts() -> None:
