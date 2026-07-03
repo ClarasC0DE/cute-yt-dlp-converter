@@ -1,8 +1,9 @@
-"""A centered cat pop-up overlay: dims/blurs a live capture of whatever is
-currently behind it (so it never shows a mismatched solid-color box), shows
-the "exhausted" cat while downloading, then crossfades to a "happy" pose
-(with a sound cue and a warm glow) once the download finishes, and fades
-back out. The cat gently bobs in place the whole time it's visible."""
+"""A centered cat pop-up overlay: blurs a live capture of whatever is
+currently behind it (so it never shows a mismatched solid-color box, and
+never darkens the background), shows the "exhausted" cat while downloading,
+then crossfades to a "happy" pose (with a sound cue and a warm glow) once
+the download finishes, and fades back out. The cat gently bobs in place the
+whole time it's visible."""
 from __future__ import annotations
 
 import math
@@ -42,7 +43,6 @@ class MascotOverlay:
     CROSSFADE_STEPS = 18
     CROSSFADE_INTERVAL_MS = 22
     HOLD_MS = 2200
-    DIM_STRENGTH = 0.55
     BLUR_RADIUS = 6
 
     BOB_INTERVAL_MS = 40
@@ -76,13 +76,13 @@ class MascotOverlay:
         self._cat_size = self._exhausted.size
 
         self._backdrop_clean: Optional[Image.Image] = None
-        self._backdrop_dim: Optional[Image.Image] = None
+        self._backdrop_blurred: Optional[Image.Image] = None
 
         # The "current frame" parameters, kept up to date by whichever
         # discrete animation (pop-in, crossfade, pop-out) is running, and
         # re-rendered continuously (with a fresh bob offset) by the idle loop.
         self._current_cat_image: Optional[Image.Image] = None
-        self._current_dim_t = 0.0
+        self._current_blur_t = 0.0
         self._current_scale_t = 0.0
         self._current_glow = 0.0
 
@@ -122,9 +122,7 @@ class MascotOverlay:
             shot = Image.new("RGBA", (w, h), _hex_to_rgb(self._fallback_bg) + (255,))
 
         self._backdrop_clean = shot
-        dark = Image.new("RGBA", shot.size, (5, 6, 20, 255))
-        blurred = shot.filter(ImageFilter.GaussianBlur(self.BLUR_RADIUS))
-        self._backdrop_dim = Image.blend(blurred, dark, self.DIM_STRENGTH)
+        self._backdrop_blurred = shot.filter(ImageFilter.GaussianBlur(self.BLUR_RADIUS))
 
     def _make_glow(self, scaled_cat: Image.Image, strength: float) -> Image.Image:
         pad = self.GLOW_PADDING
@@ -145,8 +143,8 @@ class MascotOverlay:
         canvas = Image.alpha_composite(canvas, layer(2.3, self.GLOW_BLUR_RADIUS * 0.4))
         return canvas
 
-    def _compose(self, cat_image: Image.Image, dim_t: float, scale_t: float, glow_strength: float, bob_y: float) -> Image.Image:
-        frame = Image.blend(self._backdrop_clean, self._backdrop_dim, dim_t)
+    def _compose(self, cat_image: Image.Image, blur_t: float, scale_t: float, glow_strength: float, bob_y: float) -> Image.Image:
+        frame = Image.blend(self._backdrop_clean, self._backdrop_blurred, blur_t)
 
         cw, ch = self._cat_size
         scale = 0.85 + 0.15 * scale_t
@@ -175,9 +173,9 @@ class MascotOverlay:
             label.place(relx=0, rely=0, relwidth=1, relheight=1)
         label.lift()
 
-    def _update_current(self, cat_image: Image.Image, dim_t: float, scale_t: float, glow: float) -> None:
+    def _update_current(self, cat_image: Image.Image, blur_t: float, scale_t: float, glow: float) -> None:
         self._current_cat_image = cat_image
-        self._current_dim_t = dim_t
+        self._current_blur_t = blur_t
         self._current_scale_t = scale_t
         self._current_glow = glow
 
@@ -204,7 +202,7 @@ class MascotOverlay:
             bob_y = math.sin(elapsed / self.BOB_PERIOD_S * 2 * math.pi) * self.BOB_AMPLITUDE_PX
             self._set_frame(
                 self._compose(
-                    self._current_cat_image, self._current_dim_t, self._current_scale_t, self._current_glow, bob_y
+                    self._current_cat_image, self._current_blur_t, self._current_scale_t, self._current_glow, bob_y
                 )
             )
         self._bob_after_id = self._master.after(self.BOB_INTERVAL_MS, self._bob_tick)
