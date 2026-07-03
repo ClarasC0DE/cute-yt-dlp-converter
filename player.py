@@ -237,11 +237,37 @@ class PlayerWidget(ctk.CTkFrame):
 
     def _on_seek_end(self, _event) -> None:
         self._seeking = False
-        if self.available and self._current_path:
-            length = self._player.get_length()
-            if length > 0:
-                target_ms = int(self.seek_slider.get() / 1000 * length)
-                self._player.set_time(target_ms)
+        if not self.available or not self._current_path:
+            return
+        length = self._player.get_length()
+        if length <= 0:
+            return
+        target_ms = int(self.seek_slider.get() / 1000 * length)
+
+        if self._player.get_state() == vlc.State.Ended:
+            # Same libVLC quirk as looping: once playback has fully ended,
+            # set_time() is silently ignored until the player is stopped and
+            # replayed, so seeking after the end (without loop) looked broken.
+            self._restarting = True
+            self._player.stop()
+            self.after(80, lambda: self._resume_and_seek(target_ms))
+        else:
+            self._player.set_time(target_ms)
+
+    def _resume_and_seek(self, target_ms: int) -> None:
+        self._player.play()
+        self.play_button.configure(text="⏸")
+        # set_time() right after play() gets silently ignored while libVLC is
+        # still buffering the restarted stream, so poll until it actually
+        # reports Playing (with a timeout fallback) before seeking.
+        self._wait_for_playing_then_seek(target_ms, attempts=0)
+
+    def _wait_for_playing_then_seek(self, target_ms: int, attempts: int) -> None:
+        if self._player.get_state() == vlc.State.Playing or attempts >= 20:
+            self._player.set_time(target_ms)
+            self._restarting = False
+        else:
+            self.after(50, lambda: self._wait_for_playing_then_seek(target_ms, attempts + 1))
 
     def _on_seek_drag(self, _value) -> None:
         pass  # actual seek happens on release; this just moves the handle
