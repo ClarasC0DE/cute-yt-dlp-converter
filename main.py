@@ -6,18 +6,29 @@ videos/audio.
 from __future__ import annotations
 
 import ctypes
+import math
 import os
 import queue
 import random
 import sys
 import threading
+import time
 from pathlib import Path
 from tkinter import Canvas, filedialog, messagebox
+from typing import Optional
 
 import customtkinter as ctk
 from PIL import Image, ImageDraw, ImageFilter, ImageTk
 
-from downloader import AUDIO_ONLY_LABEL, FORMAT_PRESETS, DownloadOptions, GuiLogger, download, ffmpeg_available
+from downloader import (
+    AUDIO_ONLY_LABEL,
+    FORMAT_PRESETS,
+    DownloadCancelled,
+    DownloadOptions,
+    GuiLogger,
+    download,
+    ffmpeg_available,
+)
 from mascot import MascotOverlay
 from paths import resource_path
 from player import MEDIA_EXTENSIONS, VIDEO_EXTENSIONS, PlayerWidget
@@ -72,13 +83,24 @@ class HeroBanner(Canvas):
     """A small gradient 'night sky' banner with a title, subtitle, stars and a
     library shortcut button."""
 
+    STAR_ANIM_INTERVAL_MS = 140
+
     def __init__(self, master, on_library_click, on_settings_click, height: int = 150) -> None:
         super().__init__(master, height=height, highlightthickness=0, bg=HERO_TOP)
         self._height = height
         self._last_width = -1
         self._bg_photo = None
+        self._cached_gradient: Optional[Image.Image] = None
+        self._star_start_time = time.time()
         self._stars = [
-            (random.uniform(0.04, 0.7), random.uniform(0.15, 0.85), random.uniform(1.0, 2.3))
+            {
+                "rel_x": random.uniform(0.04, 0.7),
+                "rel_y": random.uniform(0.15, 0.85),
+                "radius": random.uniform(1.0, 2.3),
+                "phase": random.uniform(0, 2 * math.pi),
+                "speed": random.uniform(0.6, 1.4),
+                "drift": random.uniform(1.0, 3.0),
+            }
             for _ in range(24)
         ]
 
@@ -114,14 +136,21 @@ class HeroBanner(Canvas):
         self._settings_button_window = self.create_window(0, 0, anchor="ne", window=self._settings_button)
 
         self.bind("<Configure>", self._on_resize)
+        self.after(self.STAR_ANIM_INTERVAL_MS, self._animate_stars)
 
     def _on_resize(self, event) -> None:
         if event.width == self._last_width:
             return
         self._last_width = event.width
+        self._cached_gradient = None
         self._redraw(event.width)
 
-    def _build_background(self, width: int) -> Image.Image:
+    def _animate_stars(self) -> None:
+        if self._last_width > 0:
+            self._redraw(self._last_width)
+        self.after(self.STAR_ANIM_INTERVAL_MS, self._animate_stars)
+
+    def _build_gradient(self, width: int) -> Image.Image:
         height = self._height
         top_rgb = _hex_to_rgb(HERO_TOP)
         bottom_rgb = _hex_to_rgb(HERO_BOTTOM)
@@ -133,18 +162,32 @@ class HeroBanner(Canvas):
                 (0, y),
                 tuple(int(top_rgb[i] + (bottom_rgb[i] - top_rgb[i]) * t) for i in range(3)),
             )
-        frame = gradient_col.resize((width, height)).convert("RGBA")
+        return gradient_col.resize((width, height)).convert("RGBA")
 
+    def _build_background(self, width: int) -> Image.Image:
+        height = self._height
+        if self._cached_gradient is None or self._cached_gradient.size != (width, height):
+            self._cached_gradient = self._build_gradient(width)
+        frame = self._cached_gradient.copy()
+
+        elapsed = time.time() - self._star_start_time
         glow_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         core_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         draw_glow = ImageDraw.Draw(glow_layer)
         draw_core = ImageDraw.Draw(core_layer)
 
-        for rel_x, rel_y, radius in self._stars:
-            x, y = rel_x * width, rel_y * height
+        for star in self._stars:
+            twinkle = 0.55 + 0.45 * (0.5 + 0.5 * math.sin(elapsed * star["speed"] + star["phase"]))
+            drift_x = math.cos(elapsed * 0.3 + star["phase"]) * star["drift"]
+            drift_y = math.sin(elapsed * 0.25 + star["phase"] * 1.3) * star["drift"]
+            x = star["rel_x"] * width + drift_x
+            y = star["rel_y"] * height + drift_y
+            radius = star["radius"]
             glow_r = radius * 4.5
-            draw_glow.ellipse([x - glow_r, y - glow_r, x + glow_r, y + glow_r], fill=(150, 185, 255, 130))
-            draw_core.ellipse([x - radius, y - radius, x + radius, y + radius], fill=(235, 242, 255, 255))
+            glow_alpha = int(130 * twinkle)
+            core_alpha = int(255 * (0.65 + 0.35 * twinkle))
+            draw_glow.ellipse([x - glow_r, y - glow_r, x + glow_r, y + glow_r], fill=(150, 185, 255, glow_alpha))
+            draw_core.ellipse([x - radius, y - radius, x + radius, y + radius], fill=(235, 242, 255, core_alpha))
 
         glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(3.2))
 
@@ -211,10 +254,12 @@ class App(ctk.CTk):
 
         self._event_queue: "queue.Queue[tuple[str, object]]" = queue.Queue()
         self._download_active = False
+        self._cancel_event = threading.Event()
         self.settings = load_settings()
 
         self._build_layout()
         self.after(100, self._drain_event_queue)
+        self.bind_all("<Control-c>", self._handle_cancel_shortcut)
 
         if not ffmpeg_available():
             self._append_log(
@@ -356,8 +401,18 @@ class App(ctk.CTk):
         self.progress_label = ctk.CTkLabel(progress_frame, text="0%", width=44, text_color=TEXT_SECONDARY)
         self.progress_label.grid(row=0, column=1, padx=(8, 0))
 
-        self.status_label = ctk.CTkLabel(body, text="Ready.", text_color=TEXT_SECONDARY, anchor="w")
-        self.status_label.grid(row=5, column=0, sticky="ew", pady=(4, 12))
+        status_row = ctk.CTkFrame(body, fg_color="transparent")
+        status_row.grid(row=5, column=0, sticky="ew", pady=(4, 12))
+        status_row.grid_columnconfigure(0, weight=1)
+
+        self.status_label = ctk.CTkLabel(status_row, text="Ready.", text_color=TEXT_SECONDARY, anchor="w")
+        self.status_label.grid(row=0, column=0, sticky="ew")
+
+        self.cancel_hint_label = ctk.CTkLabel(
+            status_row, text="Press Ctrl+C to cancel", text_color=TEXT_SECONDARY, font=("Poppins", 11)
+        )
+        self.cancel_hint_label.grid(row=0, column=1, padx=(10, 0), sticky="e")
+        self.cancel_hint_label.grid_remove()
 
         # Log
         self.log_box = ctk.CTkTextbox(
@@ -465,6 +520,7 @@ class App(ctk.CTk):
             playlist=self.playlist_var.get(),
         )
 
+        self._cancel_event.clear()
         self._set_download_active(True)
         self._clear_log()
         self.progress_bar.set(0)
@@ -475,15 +531,26 @@ class App(ctk.CTk):
         thread = threading.Thread(target=self._run_download, args=(options,), daemon=True)
         thread.start()
 
+    def _handle_cancel_shortcut(self, _event) -> Optional[str]:
+        if not self._download_active:
+            return None  # let Ctrl+C do its normal copy-to-clipboard thing
+        self._cancel_event.set()
+        self.status_label.configure(text="Cancelling...")
+        return "break"
+
     def _run_download(self, options: DownloadOptions) -> None:
         logger = GuiLogger(lambda msg: self._event_queue.put(("log", msg)))
 
         def hook(d: dict) -> None:
+            if self._cancel_event.is_set():
+                raise DownloadCancelled("Cancelled by user")
             self._event_queue.put(("progress", d))
 
         try:
             download(options, hook, logger)
             self._event_queue.put(("done", None))
+        except DownloadCancelled:
+            self._event_queue.put(("cancelled", None))
         except Exception as exc:  # noqa: BLE001 - surface any yt-dlp failure to the GUI
             self._event_queue.put(("error", str(exc)))
 
@@ -501,6 +568,8 @@ class App(ctk.CTk):
                     self._on_download_finished()
                 elif kind == "error":
                     self._on_download_error(payload)
+                elif kind == "cancelled":
+                    self._on_download_cancelled()
         except queue.Empty:
             pass
         self.after(100, self._drain_event_queue)
@@ -535,12 +604,22 @@ class App(ctk.CTk):
         self.mascot.hide_immediately()
         messagebox.showerror("Download Failed", message)
 
+    def _on_download_cancelled(self) -> None:
+        self._set_download_active(False)
+        self.status_label.configure(text="Cancelled.")
+        self._append_log("Download cancelled by user.")
+        self.mascot.hide_immediately()
+
     def _set_download_active(self, active: bool) -> None:
         self._download_active = active
         self.download_button.configure(
             state="disabled" if active else "normal",
             text="Working..." if active else "Download",
         )
+        if active:
+            self.cancel_hint_label.grid()
+        else:
+            self.cancel_hint_label.grid_remove()
 
     # ---------------------------------------------------------- Library
 

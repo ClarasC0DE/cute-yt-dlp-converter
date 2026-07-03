@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 import yt_dlp
+from yt_dlp.utils import DownloadCancelled  # re-exported for the GUI's cancel hook
 
 from paths import resource_path
 
