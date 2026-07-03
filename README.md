@@ -3,6 +3,12 @@
 A small, modern desktop GUI (CustomTkinter) around [yt-dlp](https://github.com/yt-dlp/yt-dlp)
 for downloading and converting videos and playlists — packaged as a standalone Windows `.exe`.
 
+## Download
+
+**[⬇ Download the latest yt-dlp-gui.exe](https://github.com/ClarasC0DE/cute-yt-dlp-converter/releases/latest/download/yt-dlp-gui.exe)**
+— no Python install needed, just run it. See [Requirements](#requirements) below for
+what needs to be installed alongside it.
+
 ## Features
 
 - Modern dark-theme UI (CustomTkinter) with a custom Poppins font, bundled so it
