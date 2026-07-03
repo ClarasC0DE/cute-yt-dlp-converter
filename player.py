@@ -1,8 +1,12 @@
 """Embedded media playback for the downloads library, backed by libVLC."""
 from __future__ import annotations
 
+import io
 import os
+import struct
 import sys
+import threading
+import wave
 import winsound
 from pathlib import Path
 from tkinter import Frame
@@ -23,16 +27,57 @@ AUDIO_EXTENSIONS = {".mp3", ".m4a", ".opus", ".wav", ".flac", ".ogg", ".aac"}
 MEDIA_EXTENSIONS = VIDEO_EXTENSIONS | AUDIO_EXTENSIONS
 
 
-def play_sound_effect(path: str) -> None:
-    """Fire-and-forget playback of a short one-shot sound effect.
+def _scale_wav_volume(path: str, volume: float) -> bytes:
+    """Return WAV bytes with 16-bit PCM samples scaled by volume (0.0-1.0).
+
+    Python 3.13 removed the stdlib `audioop` module that used to do this, so
+    it's reimplemented here with plain `struct` math instead of adding a
+    dependency just for one volume knob.
+    """
+    with wave.open(path, "rb") as wf:
+        params = wf.getparams()
+        frames = wf.readframes(wf.getnframes())
+
+    if params.sampwidth == 2:
+        count = len(frames) // 2
+        samples = struct.unpack(f"<{count}h", frames)
+        scaled = [max(-32768, min(32767, int(s * volume))) for s in samples]
+        frames = struct.pack(f"<{count}h", *scaled)
+
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as out:
+        out.setparams(params)
+        out.writeframes(frames)
+    return buffer.getvalue()
+
+
+def _play_scaled(path: str, volume: float) -> None:
+    """Runs on a background thread: play a volume-scaled in-memory WAV buffer
+    synchronously, so the buffer can't be garbage-collected mid-playback the
+    way it could with SND_MEMORY | SND_ASYNC (async playback returns
+    immediately, and nothing else was keeping that bytes object alive)."""
+    try:
+        data = _scale_wav_volume(path, volume)
+        winsound.PlaySound(data, winsound.SND_MEMORY)
+    except Exception:  # noqa: BLE001 - fall back to full-volume playback
+        winsound.PlaySound(path, winsound.SND_FILENAME)
+
+
+def play_sound_effect(path: str, volume: int = 100) -> None:
+    """Fire-and-forget playback of a short one-shot sound effect at the given
+    volume (0-100).
 
     Uses winsound (stdlib, WAV only) instead of VLC so this always works even
     on machines without VLC installed — VLC is only needed for the in-app
-    media library player.
+    media library player. winsound has no volume knob of its own, so volumes
+    below 100 are achieved by scaling the PCM samples before playback.
     """
-    if not os.path.exists(path):
+    if not os.path.exists(path) or volume <= 0:
         return
-    winsound.PlaySound(path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+    if volume >= 100:
+        winsound.PlaySound(path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+        return
+    threading.Thread(target=_play_scaled, args=(path, volume / 100), daemon=True).start()
 
 
 def _format_time(ms: int) -> str:

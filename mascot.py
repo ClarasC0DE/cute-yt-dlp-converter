@@ -27,9 +27,17 @@ class MascotOverlay:
     DIM_STRENGTH = 0.55
     BLUR_RADIUS = 6
 
-    def __init__(self, master: tk.Widget, exhausted_path: str, happy_path: str, sound_path: str) -> None:
+    def __init__(
+        self,
+        master: tk.Widget,
+        exhausted_path: str,
+        happy_path: str,
+        sound_path: str,
+        volume_getter: Callable[[], int] = lambda: 100,
+    ) -> None:
         self._master = master
         self._sound_path = sound_path
+        self._volume_getter = volume_getter
         self._after_id: Optional[str] = None
         self._label: Optional[tk.Label] = None
         self._photo = None  # keep a reference so Tk doesn't garbage-collect it
@@ -95,7 +103,7 @@ class MascotOverlay:
 
     def celebrate_and_hide(self) -> None:
         self._cancel_pending()
-        play_sound_effect(self._sound_path)
+        play_sound_effect(self._sound_path, self._volume_getter())
         self._crossfade(self._exhausted, self._happy, 0, self._schedule_hide)
 
     def hide_immediately(self) -> None:

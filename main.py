@@ -21,6 +21,8 @@ from downloader import AUDIO_ONLY_LABEL, FORMAT_PRESETS, DownloadOptions, GuiLog
 from mascot import MascotOverlay
 from paths import resource_path
 from player import MEDIA_EXTENSIONS, VIDEO_EXTENSIONS, PlayerWidget
+from settings import load_settings, save_settings
+from settings_dialog import SettingsDialog
 
 ctk.set_appearance_mode("dark")
 
@@ -70,7 +72,7 @@ class HeroBanner(Canvas):
     """A small gradient 'night sky' banner with a title, subtitle, stars and a
     library shortcut button."""
 
-    def __init__(self, master, on_library_click, height: int = 150) -> None:
+    def __init__(self, master, on_library_click, on_settings_click, height: int = 150) -> None:
         super().__init__(master, height=height, highlightthickness=0, bg=HERO_TOP)
         self._height = height
         self._last_width = -1
@@ -80,19 +82,36 @@ class HeroBanner(Canvas):
             for _ in range(24)
         ]
 
+        button_bg = _lerp_color(HERO_TOP, HERO_BOTTOM, 0.15)
+
         self._library_button = ctk.CTkButton(
             self,
             text="Downloads  ›",
             height=32,
             corner_radius=16,
             fg_color="#1E2350",
-            bg_color=_lerp_color(HERO_TOP, HERO_BOTTOM, 0.15),
+            bg_color=button_bg,
             hover_color="#332764",
             text_color=TEXT_PRIMARY,
             font=("Poppins", 12),
             command=on_library_click,
         )
         self._button_window = self.create_window(0, 0, anchor="ne", window=self._library_button)
+
+        self._settings_button = ctk.CTkButton(
+            self,
+            text="⚙",
+            width=32,
+            height=32,
+            corner_radius=16,
+            fg_color="#1E2350",
+            bg_color=button_bg,
+            hover_color="#332764",
+            text_color=TEXT_PRIMARY,
+            font=("Poppins", 14),
+            command=on_settings_click,
+        )
+        self._settings_button_window = self.create_window(0, 0, anchor="ne", window=self._settings_button)
 
         self.bind("<Configure>", self._on_resize)
 
@@ -159,6 +178,7 @@ class HeroBanner(Canvas):
         )
 
         self.coords(self._button_window, width - 20, 22)
+        self.coords(self._settings_button_window, width - 148, 22)
         self.tag_lower("bg")
 
 
@@ -191,6 +211,7 @@ class App(ctk.CTk):
 
         self._event_queue: "queue.Queue[tuple[str, object]]" = queue.Queue()
         self._download_active = False
+        self.settings = load_settings()
 
         self._build_layout()
         self.after(100, self._drain_event_queue)
@@ -206,7 +227,7 @@ class App(ctk.CTk):
     def _build_layout(self) -> None:
         self.grid_columnconfigure(0, weight=1)
 
-        hero = HeroBanner(self, on_library_click=self._show_library)
+        hero = HeroBanner(self, on_library_click=self._show_library, on_settings_click=self._open_settings)
         hero.grid(row=0, column=0, sticky="ew")
 
         container = ctk.CTkFrame(self, fg_color="transparent")
@@ -230,6 +251,7 @@ class App(ctk.CTk):
             exhausted_path=resource_path("assets/cat_exhausted.png"),
             happy_path=resource_path("assets/cat_happy.png"),
             sound_path=resource_path("assets/sparkle.wav"),
+            volume_getter=lambda: self.settings["sound_volume"],
         )
 
         self.download_view.tkraise()
@@ -528,6 +550,27 @@ class App(ctk.CTk):
     def _show_downloader(self) -> None:
         self.player_widget.stop()
         self.download_view.tkraise()
+
+    # --------------------------------------------------------- Settings
+
+    def _open_settings(self) -> None:
+        SettingsDialog(
+            self,
+            bg=BG_DEEP,
+            card_color=BG_CARD,
+            border_color=BG_CARD_BORDER,
+            accent=ACCENT,
+            accent_hover=ACCENT_HOVER,
+            text_primary=TEXT_PRIMARY,
+            text_secondary=TEXT_SECONDARY,
+            initial_volume=self.settings["sound_volume"],
+            on_volume_change=self._set_sound_volume,
+            on_exit_app=self.destroy,
+        )
+
+    def _set_sound_volume(self, volume: int) -> None:
+        self.settings["sound_volume"] = volume
+        save_settings(self.settings)
 
     def _refresh_library(self) -> None:
         output_dir = self.output_entry.get().strip() or DEFAULT_OUTPUT_DIR
