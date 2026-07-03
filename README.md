@@ -10,6 +10,12 @@ for downloading and converting videos and playlists — packaged as a standalone
 [Requirements](#requirements) below for the one thing (VLC) that still needs
 to be installed separately.
 
+## Screenshots
+
+| Downloading | Celebrating when it's done |
+|---|---|
+| ![Main window](docs/screenshot-main.png) | ![Cat mascot celebrating](docs/screenshot-mascot.png) |
+
 ## Features
 
 - Modern dark-theme UI (CustomTkinter) with a custom Poppins font, bundled so it
