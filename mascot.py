@@ -4,6 +4,7 @@ the "exhausted" cat while downloading, then crossfades to a "happy" pose
 (with a sound cue) once the download finishes, and fades back out."""
 from __future__ import annotations
 
+import time
 import tkinter as tk
 from typing import Callable, Optional
 
@@ -14,6 +15,21 @@ from player import play_sound_effect
 
 def _ease_out_cubic(t: float) -> float:
     return 1 - (1 - t) ** 3
+
+
+def _hex_to_rgb(value: str) -> tuple[int, int, int]:
+    value = value.lstrip("#")
+    return int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
+
+
+def _capture_looks_blank(image: Image.Image) -> bool:
+    """True if a screen capture came back suspiciously close to solid black —
+    which happens occasionally if the window was occluded or hadn't finished
+    painting yet when ImageGrab fired."""
+    small = image.convert("L").resize((24, 24))
+    pixels = small.getdata()
+    average = sum(pixels) / len(pixels)
+    return average < 8
 
 
 class MascotOverlay:
@@ -34,10 +50,12 @@ class MascotOverlay:
         happy_path: str,
         sound_path: str,
         volume_getter: Callable[[], int] = lambda: 100,
+        fallback_bg: str = "#0A0C22",
     ) -> None:
         self._master = master
         self._sound_path = sound_path
         self._volume_getter = volume_getter
+        self._fallback_bg = fallback_bg
         self._after_id: Optional[str] = None
         self._label: Optional[tk.Label] = None
         self._photo = None  # keep a reference so Tk doesn't garbage-collect it
@@ -55,12 +73,35 @@ class MascotOverlay:
         return self._label
 
     def _capture_backdrop(self) -> None:
+        # Bring the window to the front first -- a big source of the
+        # occasional black capture was ImageGrab photographing whatever
+        # occluded window happened to be on top of us at that instant.
+        toplevel = self._master.winfo_toplevel()
+        toplevel.lift()
         self._master.update_idletasks()
+
         x = self._master.winfo_rootx()
         y = self._master.winfo_rooty()
         w = max(1, self._master.winfo_width())
         h = max(1, self._master.winfo_height())
-        shot = ImageGrab.grab(bbox=(x, y, x + w, y + h)).convert("RGBA")
+
+        shot = None
+        for attempt in range(6):
+            candidate = ImageGrab.grab(bbox=(x, y, x + w, y + h)).convert("RGBA")
+            if not _capture_looks_blank(candidate):
+                shot = candidate
+                break
+            time.sleep(0.08)
+            toplevel.lift()
+            self._master.update_idletasks()
+
+        if shot is None:
+            # The screen grab kept coming back blank even after several
+            # retries and re-raising the window -- fall back to a plain
+            # themed backdrop instead of showing a broken black popup. This
+            # should be exceedingly rare in practice.
+            shot = Image.new("RGBA", (w, h), _hex_to_rgb(self._fallback_bg) + (255,))
+
         self._backdrop_clean = shot
         dark = Image.new("RGBA", shot.size, (5, 6, 20, 255))
         blurred = shot.filter(ImageFilter.GaussianBlur(self.BLUR_RADIUS))

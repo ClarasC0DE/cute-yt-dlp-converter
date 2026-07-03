@@ -252,6 +252,7 @@ class App(ctk.CTk):
             happy_path=resource_path("assets/cat_happy.png"),
             sound_path=resource_path("assets/sparkle.wav"),
             volume_getter=lambda: self.settings["sound_volume"],
+            fallback_bg=BG_DEEP,
         )
 
         self.download_view.tkraise()
