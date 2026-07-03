@@ -229,7 +229,7 @@ class App(ctk.CTk):
             container,
             exhausted_path=resource_path("assets/cat_exhausted.png"),
             happy_path=resource_path("assets/cat_happy.png"),
-            sound_path=resource_path("assets/sparkle.mp3"),
+            sound_path=resource_path("assets/sparkle.wav"),
         )
 
         self.download_view.tkraise()

@@ -69,9 +69,10 @@ def build_ydl_opts(options: DownloadOptions, progress_hook: Callable, logger: Gu
         "progress_hooks": [progress_hook],
         "logger": logger,
         "merge_output_format": "mp4",
-        # Prefer H.264 over HEVC/AV1/VP9 so downloads play back everywhere
+        # Prefer H.264 video and AAC audio over HEVC/AV1/VP9 and Opus/Vorbis
+        # so downloads play back everywhere (e.g. Windows' built-in player)
         # without needing extra OS codec packs.
-        "format_sort": ["vcodec:h264"],
+        "format_sort": ["vcodec:h264", "acodec:aac"],
     }
 
     bundled_dir = _bundled_ffmpeg_dir()

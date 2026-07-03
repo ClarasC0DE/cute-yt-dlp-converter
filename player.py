@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import sys
+import winsound
 from pathlib import Path
 from tkinter import Frame
 from typing import Optional
@@ -23,11 +24,15 @@ MEDIA_EXTENSIONS = VIDEO_EXTENSIONS | AUDIO_EXTENSIONS
 
 
 def play_sound_effect(path: str) -> None:
-    """Fire-and-forget playback of a short one-shot sound effect."""
-    if not VLC_AVAILABLE or not os.path.exists(path):
+    """Fire-and-forget playback of a short one-shot sound effect.
+
+    Uses winsound (stdlib, WAV only) instead of VLC so this always works even
+    on machines without VLC installed — VLC is only needed for the in-app
+    media library player.
+    """
+    if not os.path.exists(path):
         return
-    effect_player = vlc.MediaPlayer(path)
-    effect_player.play()
+    winsound.PlaySound(path, winsound.SND_FILENAME | winsound.SND_ASYNC)
 
 
 def _format_time(ms: int) -> str:
