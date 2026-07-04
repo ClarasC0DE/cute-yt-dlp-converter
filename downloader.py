@@ -65,7 +65,10 @@ def ffmpeg_available() -> bool:
 def build_ydl_opts(options: DownloadOptions, progress_hook: Callable, logger: GuiLogger) -> dict:
     opts: dict = {
         "format": FORMAT_PRESETS[options.format_label],
-        "outtmpl": os.path.join(options.output_dir, "%(title)s.%(ext)s"),
+        # Include the video ID so two different videos that happen to share
+        # the same title/caption (very common on TikTok) don't collide on
+        # the same filename and silently overwrite or "skip" each other.
+        "outtmpl": os.path.join(options.output_dir, "%(title)s [%(id)s].%(ext)s"),
         "noplaylist": not options.playlist,
         "progress_hooks": [progress_hook],
         "logger": logger,
