@@ -321,6 +321,10 @@ class App(ctk.CTk):
             url_card, placeholder_text="https://www.youtube.com/watch?v=...", **entry_style
         )
         self.url_entry.grid(row=0, column=0, padx=14, pady=14, sticky="ew")
+        # Select all existing text on focus, so clicking in and pasting a new
+        # link replaces it instead of appending after whatever was left over
+        # from the last download.
+        self.url_entry.bind("<FocusIn>", lambda _e: self.url_entry.after(1, lambda: self.url_entry.select_range(0, "end")))
 
         # Output dir card
         output_card = Card(body)
@@ -505,6 +509,14 @@ class App(ctk.CTk):
         if not url:
             messagebox.showwarning("No URL", "Please enter a video or playlist URL first.")
             return
+        if url.lower().count("http") > 1:
+            messagebox.showwarning(
+                "That doesn't look like a single URL",
+                "The URL field seems to contain more than one link stuck together "
+                "(this can happen if a new link gets pasted in without clearing the "
+                "old one first). Please clear the field and paste just one URL.",
+            )
+            return
 
         output_dir = self.output_entry.get().strip() or DEFAULT_OUTPUT_DIR
         try:
@@ -527,6 +539,7 @@ class App(ctk.CTk):
         self.progress_label.configure(text="0%")
         self.status_label.configure(text="Starting download...")
         self.mascot.show_exhausted()
+        self.url_entry.delete(0, "end")
 
         thread = threading.Thread(target=self._run_download, args=(options,), daemon=True)
         thread.start()
